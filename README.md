@@ -16,12 +16,13 @@ It’s conceptually similar to **Seurat + Signac** in R 🖥️, allowing integr
 
 # Before and after filtering 
 
-#### ATAC
-![ATAC](neurog2_atac_qc.png?v=1)
+![rna](neurog2_rna_qc_before_filtering.png?v=1)
+![atac](neurog2_atac_qc_before_filtering.png?v=1)
 
-#### RNA 
-![RNA](neurog2_rna_qc.png?v=1) 
+# After Filtering 
 
+![rna](neurog2_rna_qc_after_filtering.png?v=1)
+![atac](neurog2_atac_qc_after_filtering.png?v=1)
 
 #### UMAP 
 

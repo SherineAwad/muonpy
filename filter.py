@@ -20,6 +20,111 @@ def parse_args():
     parser.add_argument('-o', '--output', required=True, help='Output h5mu file')
     return parser.parse_args()
 
+def create_rna_plots(rna, prefix, title_suffix=""):
+    """Create RNA QC plots"""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f'RNA QC {title_suffix}', fontsize=16, y=1.02)
+    
+    # 1. Histogram of nCount_RNA
+    axes[0, 0].hist(rna.obs['n_counts'], bins=50, edgecolor='black')
+    axes[0, 0].axvline(x=1000, color='red', linestyle='--', linewidth=2)
+    axes[0, 0].axvline(x=50000, color='red', linestyle='--', linewidth=2)
+    axes[0, 0].set_xlabel('nCount_RNA')
+    axes[0, 0].set_ylabel('Number of cells')
+    axes[0, 0].set_title('Total RNA counts per cell')
+    
+    # 2. Histogram of nFeature_RNA
+    axes[0, 1].hist(rna.obs['n_genes'], bins=50, edgecolor='black')
+    axes[0, 1].axvline(x=200, color='red', linestyle='--', linewidth=2)
+    axes[0, 1].axvline(x=5000, color='red', linestyle='--', linewidth=2)
+    axes[0, 1].set_xlabel('nFeature_RNA')
+    axes[0, 1].set_ylabel('Number of cells')
+    axes[0, 1].set_title('Number of genes per cell')
+    
+    # 3. Scatter: nFeature_RNA vs nCount_RNA colored by percent_mt
+    if 'percent_mt' in rna.obs and not rna.obs['percent_mt'].isnull().all():
+        scatter = axes[1, 0].scatter(rna.obs['n_counts'], rna.obs['n_genes'], 
+                                    c=rna.obs['percent_mt'], s=5, alpha=0.7, 
+                                    cmap='viridis', vmax=30)
+        axes[1, 0].set_xlabel('nCount_RNA')
+        axes[1, 0].set_ylabel('nFeature_RNA')
+        axes[1, 0].set_title('Genes vs counts (colored by %MT)')
+        plt.colorbar(scatter, ax=axes[1, 0], label='% Mitochondrial')
+    else:
+        axes[1, 0].scatter(rna.obs['n_counts'], rna.obs['n_genes'], s=5, alpha=0.7)
+        axes[1, 0].set_xlabel('nCount_RNA')
+        axes[1, 0].set_ylabel('nFeature_RNA')
+        axes[1, 0].set_title('Genes vs counts')
+    
+    # 4. Histogram of percent.mt
+    if 'percent_mt' in rna.obs and not rna.obs['percent_mt'].isnull().all():
+        axes[1, 1].hist(rna.obs['percent_mt'], bins=50, edgecolor='black')
+        axes[1, 1].axvline(x=20, color='red', linestyle='--', linewidth=2)
+        axes[1, 1].set_xlabel('Percent mitochondrial')
+        axes[1, 1].set_ylabel('Number of cells')
+        axes[1, 1].set_title('Mitochondrial percentage')
+    else:
+        axes[1, 1].scatter(rna.obs['n_counts'], rna.obs['n_genes'], s=5, alpha=0.7)
+        axes[1, 1].set_xlabel('nCount_RNA')
+        axes[1, 1].set_ylabel('nFeature_RNA')
+        axes[1, 1].set_title('Genes vs counts (alternative)')
+    
+    plt.tight_layout()
+    plt.savefig(f'{prefix}_rna_qc{title_suffix}.png', dpi=150, bbox_inches='tight')
+    plt.close()
+
+def create_atac_plots(atac, prefix, title_suffix=""):
+    """Create ATAC QC plots"""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    fig.suptitle(f'ATAC QC {title_suffix}', fontsize=16, y=1.02)
+    
+    # 1. Histogram of nCount_ATAC
+    axes[0, 0].hist(atac.obs['n_counts'], bins=50, edgecolor='black')
+    axes[0, 0].axvline(x=1000, color='red', linestyle='--', linewidth=2)
+    axes[0, 0].axvline(x=100000, color='red', linestyle='--', linewidth=2)
+    axes[0, 0].set_xlabel('nCount_ATAC')
+    axes[0, 0].set_ylabel('Number of cells')
+    axes[0, 0].set_title('Total ATAC counts per cell')
+    
+    # 2. Histogram of nFeature_ATAC
+    axes[0, 1].hist(atac.obs['n_peaks'], bins=50, edgecolor='black')
+    axes[0, 1].axvline(x=500, color='red', linestyle='--', linewidth=2)
+    axes[0, 1].set_xlabel('nFeature_ATAC')
+    axes[0, 1].set_ylabel('Number of cells')
+    axes[0, 1].set_title('Number of peaks per cell')
+    
+    # 3. Scatter: nFeature_ATAC vs nCount_ATAC
+    if 'tss_enrichment' in atac.obs and not atac.obs['tss_enrichment'].isnull().all():
+        scatter = axes[1, 0].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], 
+                                    c=atac.obs['tss_enrichment'], s=5, alpha=0.7, 
+                                    cmap='plasma', vmax=0.2)
+        axes[1, 0].set_xlabel('nCount_ATAC')
+        axes[1, 0].set_ylabel('nFeature_ATAC')
+        axes[1, 0].set_title('Peaks vs counts (colored by TSS enrichment)')
+        plt.colorbar(scatter, ax=axes[1, 0], label='TSS enrichment')
+    else:
+        axes[1, 0].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], s=5, alpha=0.7)
+        axes[1, 0].set_xlabel('nCount_ATAC')
+        axes[1, 0].set_ylabel('nFeature_ATAC')
+        axes[1, 0].set_title('Peaks vs counts')
+    
+    # 4. Histogram of TSS enrichment
+    if 'tss_enrichment' in atac.obs and not atac.obs['tss_enrichment'].isnull().all():
+        axes[1, 1].hist(atac.obs['tss_enrichment'], bins=50, edgecolor='black')
+        axes[1, 1].axvline(x=0.1, color='red', linestyle='--', linewidth=2)
+        axes[1, 1].set_xlabel('TSS enrichment')
+        axes[1, 1].set_ylabel('Number of cells')
+        axes[1, 1].set_title('TSS enrichment score')
+    else:
+        axes[1, 1].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], s=5, alpha=0.7)
+        axes[1, 1].set_xlabel('nCount_ATAC')
+        axes[1, 1].set_ylabel('nFeature_ATAC')
+        axes[1, 1].set_title('Peaks vs counts (alternative)')
+    
+    plt.tight_layout()
+    plt.savefig(f'{prefix}_atac_qc{title_suffix}.png', dpi=150, bbox_inches='tight')
+    plt.close()
+
 def main():
     args = parse_args()
     
@@ -30,10 +135,15 @@ def main():
     
     print(f"Available modalities: {list(mdata.mod.keys())}")
     
+    # Store original cell counts
+    original_counts = {}
+    for mod in mdata.mod.keys():
+        original_counts[mod] = mdata.mod[mod].n_obs
+    
     # === PROCESS RNA DATA ===
     if 'rna' in mdata.mod:
         print("\n=== PROCESSING RNA DATA ===")
-        rna = mdata.mod['rna']
+        rna = mdata.mod['rna'].copy()
         print(f"RNA original shape: {rna.shape}")
         
         # Calculate basic RNA QC metrics
@@ -47,7 +157,8 @@ def main():
                 col_data = rna.var[col].astype(str)
                 mt_genes = mt_genes | col_data.str.contains('^MT-|^mt-|^Mt-', na=False)
         
-        if mt_genes.sum() > 0:
+        has_mt = mt_genes.sum() > 0
+        if has_mt:
             mt_counts = rna[:, mt_genes].X.sum(axis=1).A1 if hasattr(rna[:, mt_genes].X, 'A1') else rna[:, mt_genes].X.sum(axis=1)
             rna.obs['percent_mt'] = 100 * mt_counts / (rna.obs['n_counts'].values + 1e-6)
             print(f"Found {mt_genes.sum()} mitochondrial genes")
@@ -55,44 +166,8 @@ def main():
             rna.obs['percent_mt'] = 0
             print("Warning: No mitochondrial genes found")
         
-        # === RNA PLOTS (EXACTLY LIKE TUTORIAL) ===
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-        
-        # 1. Histogram of nCount_RNA
-        axes[0, 0].hist(rna.obs['n_counts'], bins=50, edgecolor='black')
-        axes[0, 0].axvline(x=1000, color='red', linestyle='--', linewidth=2)
-        axes[0, 0].axvline(x=50000, color='red', linestyle='--', linewidth=2)
-        axes[0, 0].set_xlabel('nCount_RNA')
-        axes[0, 0].set_ylabel('Number of cells')
-        axes[0, 0].set_title('Total RNA counts per cell')
-        
-        # 2. Histogram of nFeature_RNA
-        axes[0, 1].hist(rna.obs['n_genes'], bins=50, edgecolor='black')
-        axes[0, 1].axvline(x=200, color='red', linestyle='--', linewidth=2)
-        axes[0, 1].axvline(x=5000, color='red', linestyle='--', linewidth=2)
-        axes[0, 1].set_xlabel('nFeature_RNA')
-        axes[0, 1].set_ylabel('Number of cells')
-        axes[0, 1].set_title('Number of genes per cell')
-        
-        # 3. Scatter: nFeature_RNA vs nCount_RNA colored by percent.mt
-        scatter = axes[1, 0].scatter(rna.obs['n_counts'], rna.obs['n_genes'], 
-                                    c=rna.obs['percent_mt'], s=5, alpha=0.7, 
-                                    cmap='viridis', vmax=30)
-        axes[1, 0].set_xlabel('nCount_RNA')
-        axes[1, 0].set_ylabel('nFeature_RNA')
-        axes[1, 0].set_title('Genes vs counts (colored by %MT)')
-        plt.colorbar(scatter, ax=axes[1, 0], label='% Mitochondrial')
-        
-        # 4. Histogram of percent.mt
-        axes[1, 1].hist(rna.obs['percent_mt'], bins=50, edgecolor='black')
-        axes[1, 1].axvline(x=20, color='red', linestyle='--', linewidth=2)
-        axes[1, 1].set_xlabel('Percent mitochondrial')
-        axes[1, 1].set_ylabel('Number of cells')
-        axes[1, 1].set_title('Mitochondrial percentage')
-        
-        plt.tight_layout()
-        plt.savefig(f'{base_prefix}_rna_qc.png', dpi=150, bbox_inches='tight')
-        plt.close()
+        # Create BEFORE filtering plots
+        create_rna_plots(rna, base_prefix, "_before_filtering")
         
         # === RNA FILTERING ===
         print(f"\nRNA cells before filtering: {rna.n_obs}")
@@ -102,24 +177,29 @@ def main():
             (rna.obs['n_counts'] >= 1000) & 
             (rna.obs['n_counts'] <= 50000) &
             (rna.obs['n_genes'] >= 200) &
-            (rna.obs['n_genes'] <= 5000) &
-            (rna.obs['percent_mt'] <= 20)
+            (rna.obs['n_genes'] <= 5000)
         )
         
-        rna = rna[mask, :].copy()
-        print(f"RNA cells after filtering: {rna.n_obs}")
+        if has_mt:
+            mask = mask & (rna.obs['percent_mt'] <= 20)
+        
+        rna_filtered = rna[mask, :].copy()
+        print(f"RNA cells after filtering: {rna_filtered.n_obs}")
         
         # Filter genes
-        print(f"RNA genes before filtering: {rna.n_vars}")
-        sc.pp.filter_genes(rna, min_cells=10)
-        print(f"RNA genes after min_cells=10 filter: {rna.n_vars}")
+        print(f"RNA genes before filtering: {rna_filtered.n_vars}")
+        sc.pp.filter_genes(rna_filtered, min_cells=10)
+        print(f"RNA genes after min_cells=10 filter: {rna_filtered.n_vars}")
         
-        mdata.mod['rna'] = rna
+        # Create AFTER filtering plots
+        create_rna_plots(rna_filtered, base_prefix, "_after_filtering")
+        
+        mdata.mod['rna'] = rna_filtered
     
     # === PROCESS ATAC DATA ===
     if 'atac' in mdata.mod:
         print("\n=== PROCESSING ATAC DATA ===")
-        atac = mdata.mod['atac']
+        atac = mdata.mod['atac'].copy()
         print(f"ATAC original shape: {atac.shape}")
         
         # Calculate basic ATAC QC metrics
@@ -127,6 +207,7 @@ def main():
         atac.obs['n_peaks'] = (atac.X > 0).sum(axis=1).A1 if hasattr(atac.X, 'A1') else (atac.X > 0).sum(axis=1)
         
         # Calculate TSS enrichment if possible
+        has_tss = False
         atac.obs['tss_enrichment'] = 0  # Default
         
         # Look for TSS annotation in var columns
@@ -138,58 +219,15 @@ def main():
                     tss_counts = atac[:, tss_mask].X.sum(axis=1).A1 if hasattr(atac[:, tss_mask].X, 'A1') else atac[:, tss_mask].X.sum(axis=1)
                     total_counts = atac.obs['n_counts'].values
                     atac.obs['tss_enrichment'] = tss_counts / (total_counts + 1e-6)
+                    has_tss = True
                     print(f"Found {tss_mask.sum()} TSS peaks in column '{col}'")
                     break
         
-        # === ATAC PLOTS (EXACTLY LIKE TUTORIAL) ===
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        if not has_tss:
+            print("Warning: No TSS annotation found")
         
-        # 1. Histogram of nCount_ATAC
-        axes[0, 0].hist(atac.obs['n_counts'], bins=50, edgecolor='black')
-        axes[0, 0].axvline(x=1000, color='red', linestyle='--', linewidth=2)
-        axes[0, 0].axvline(x=100000, color='red', linestyle='--', linewidth=2)
-        axes[0, 0].set_xlabel('nCount_ATAC')
-        axes[0, 0].set_ylabel('Number of cells')
-        axes[0, 0].set_title('Total ATAC counts per cell')
-        
-        # 2. Histogram of nFeature_ATAC
-        axes[0, 1].hist(atac.obs['n_peaks'], bins=50, edgecolor='black')
-        axes[0, 1].axvline(x=500, color='red', linestyle='--', linewidth=2)
-        axes[0, 1].set_xlabel('nFeature_ATAC')
-        axes[0, 1].set_ylabel('Number of cells')
-        axes[0, 1].set_title('Number of peaks per cell')
-        
-        # 3. Scatter: nFeature_ATAC vs nCount_ATAC colored by TSS enrichment
-        if atac.obs['tss_enrichment'].max() > 0:
-            scatter = axes[1, 0].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], 
-                                        c=atac.obs['tss_enrichment'], s=5, alpha=0.7, 
-                                        cmap='plasma', vmax=0.2)
-            axes[1, 0].set_xlabel('nCount_ATAC')
-            axes[1, 0].set_ylabel('nFeature_ATAC')
-            axes[1, 0].set_title('Peaks vs counts (colored by TSS enrichment)')
-            plt.colorbar(scatter, ax=axes[1, 0], label='TSS enrichment')
-        else:
-            axes[1, 0].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], s=5, alpha=0.7)
-            axes[1, 0].set_xlabel('nCount_ATAC')
-            axes[1, 0].set_ylabel('nFeature_ATAC')
-            axes[1, 0].set_title('Peaks vs counts (TSS data not available)')
-        
-        # 4. Histogram of TSS enrichment
-        if atac.obs['tss_enrichment'].max() > 0:
-            axes[1, 1].hist(atac.obs['tss_enrichment'], bins=50, edgecolor='black')
-            axes[1, 1].axvline(x=0.1, color='red', linestyle='--', linewidth=2)
-            axes[1, 1].set_xlabel('TSS enrichment')
-            axes[1, 1].set_ylabel('Number of cells')
-            axes[1, 1].set_title('TSS enrichment score')
-        else:
-            axes[1, 1].text(0.5, 0.5, 'TSS annotation\nnot available', 
-                          ha='center', va='center', transform=axes[1, 1].transAxes,
-                          fontsize=12)
-            axes[1, 1].set_title('TSS enrichment (data not available)')
-        
-        plt.tight_layout()
-        plt.savefig(f'{base_prefix}_atac_qc.png', dpi=150, bbox_inches='tight')
-        plt.close()
+        # Create BEFORE filtering plots
+        create_atac_plots(atac, base_prefix, "_before_filtering")
         
         # === ATAC FILTERING ===
         print(f"\nATAC cells before filtering: {atac.n_obs}")
@@ -201,37 +239,46 @@ def main():
             (atac.obs['n_peaks'] >= 500)
         )
         
-        if atac.obs['tss_enrichment'].max() > 0:
+        if has_tss:
             mask = mask & (atac.obs['tss_enrichment'] >= 0.1)
             print("Applied TSS enrichment filter (≥0.1)")
         
-        atac = atac[mask, :].copy()
-        print(f"ATAC cells after filtering: {atac.n_obs}")
+        atac_filtered = atac[mask, :].copy()
+        print(f"ATAC cells after filtering: {atac_filtered.n_obs}")
         
         # Filter peaks
-        print(f"ATAC peaks before filtering: {atac.n_vars}")
-        sc.pp.filter_genes(atac, min_cells=10)
-        print(f"ATAC peaks after min_cells=10 filter: {atac.n_vars}")
+        print(f"ATAC peaks before filtering: {atac_filtered.n_vars}")
+        sc.pp.filter_genes(atac_filtered, min_cells=10)
+        print(f"ATAC peaks after min_cells=10 filter: {atac_filtered.n_vars}")
         
         # Remove non-standard chromosomes if available
-        if 'chrom' in atac.var.columns:
+        if 'chrom' in atac_filtered.var.columns:
             print("\nRemoving peaks on non-standard chromosomes...")
-            chromosomes = atac.var['chrom'].astype(str)
+            chromosomes = atac_filtered.var['chrom'].astype(str)
             valid_chromosomes = [str(i) for i in range(1, 23)] + ['X', 'Y', 'M', 'MT']
             valid_chromosomes += [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
             chr_mask = chromosomes.isin(valid_chromosomes)
-            atac = atac[:, chr_mask].copy()
-            print(f"ATAC peaks after chromosome filter: {atac.n_vars}")
+            atac_filtered = atac_filtered[:, chr_mask].copy()
+            print(f"ATAC peaks after chromosome filter: {atac_filtered.n_vars}")
         
-        mdata.mod['atac'] = atac
+        # Create AFTER filtering plots
+        create_atac_plots(atac_filtered, base_prefix, "_after_filtering")
+        
+        mdata.mod['atac'] = atac_filtered
     
     # === ALIGN CELLS ===
     print("\n=== ALIGNING CELLS BETWEEN MODALITIES ===")
     mu.pp.intersect_obs(mdata)
     
-    print(f"\nFinal cell counts after alignment:")
-    for mod in mdata.mod.keys():
-        print(f"  {mod.upper()}: {mdata.mod[mod].n_obs} cells, {mdata.mod[mod].n_vars} features")
+    print(f"\n=== SUMMARY ===")
+    for mod in original_counts.keys():
+        if mod in mdata.mod:
+            print(f"{mod.upper()}:")
+            print(f"  Before filtering: {original_counts[mod]} cells")
+            print(f"  After filtering:  {mdata.mod[mod].n_obs} cells")
+            if mod in original_counts:
+                percent_kept = (mdata.mod[mod].n_obs / original_counts[mod]) * 100
+                print(f"  Kept: {percent_kept:.1f}%")
     
     # Save data
     print(f"\nSaving filtered data to {args.output}")
@@ -239,7 +286,10 @@ def main():
     
     print("\n=== FILTERING COMPLETE ===")
     print(f"  Output file: {args.output}")
-    print(f"  QC plots: {base_prefix}_rna_qc.png, {base_prefix}_atac_qc.png")
+    print(f"  QC plots:")
+    for suffix in ["_before_filtering", "_after_filtering"]:
+        print(f"    {base_prefix}_rna_qc{suffix}.png")
+        print(f"    {base_prefix}_atac_qc{suffix}.png")
 
 if __name__ == '__main__':
     main()
