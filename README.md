@@ -16,17 +16,12 @@ It’s conceptually similar to **Seurat + Signac** in R 🖥️, allowing integr
 
 # Before and after filtering 
 
-### Stats 
+#### ATAC
+![ATAC](neurog2_atac_qc.png?v=1)
 
-| Stage | Cells | Peaks |
-|------|-------|-------|
-| Original | 22,105 | 447,355 |
-| After cell filtering | 21,213 | 447,355 |
-| After peak filtering | 21,213 | 447,244 |
-| Final | 21,213 | 447,244 |
+#### RNA 
+![RNA](neurog2_rna_qc.png?v=1) 
 
 
-![Before](neurog2_qc_before_filtering.png?v=1)
-
-![After](neurog2_qc_after_filtering.png?v=1)
+#### UMAP 
 
