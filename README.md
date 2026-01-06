@@ -39,9 +39,9 @@ It’s conceptually similar to **Seurat + Signac** in R 🖥️, allowing integr
 #### UMAP 
 
 
-![rna](neurog2_filtered_umap_rna_only.png?v=1)
-![atac](neurog2_filtered_umap_atac_only.png?v=1)
-![overlapped](neurog2_filtered_umap_rna_atac_overlapped.png?v=1)
+![rna](neurog2_filtered_umap_rna_only.png?v=2)
+![atac](neurog2_filtered_umap_atac_only.png?v=2)
+![overlapped](neurog2_filtered_umap_rna_atac_overlapped.png?v=2)
 
 
 
