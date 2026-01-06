@@ -63,6 +63,14 @@ def main():
     sc.pp.normalize_total(rna, target_sum=1e4)
     sc.pp.log1p(rna)
     
+    # Add RNA QC metrics if not present
+    if 'n_counts' not in rna.obs.columns:
+        rna.obs['n_counts'] = rna.X.sum(axis=1).A1 if hasattr(rna.X, 'A1') else rna.X.sum(axis=1)
+    if 'n_genes' not in rna.obs.columns:
+        rna.obs['n_genes'] = (rna.X > 0).sum(axis=1).A1 if hasattr(rna.X, 'A1') else (rna.X > 0).sum(axis=1)
+    
+    print(f"RNA obs columns after QC: {list(rna.obs.columns)}")
+    
     # RNA feature selection
     print("2. Selecting highly variable genes...")
     sc.pp.highly_variable_genes(rna, n_top_genes=2000, flavor='cell_ranger')
@@ -76,13 +84,6 @@ def main():
     # Copy PCA to main RNA object
     rna.obsm['X_pca'] = rna_hv.obsm['X_pca']
     rna.uns['pca'] = rna_hv.uns['pca']
-    
-    # Plot RNA PCA variance
-    fig = plt.figure(figsize=(8, 6))
-    sc.pl.pca_variance_ratio(rna, log=True, show=False)
-    plt.title('RNA PCA variance ratio')
-    plt.savefig(f'{base_prefix}_rna_pca_variance.png', dpi=150, bbox_inches='tight')
-    plt.close()
     
     # Process ATAC data
     print("\n=== PROCESSING ATAC DATA ===")
@@ -121,16 +122,9 @@ def main():
     sc.pp.scale(atac_hv, max_value=10)
     sc.tl.pca(atac_hv, n_comps=50, random_state=42)
     
-    # Copy PCA to main ATAC object (called X_lsi in tutorials)
+    # Copy PCA to main ATAC object
     atac.obsm['X_lsi'] = atac_hv.obsm['X_pca']
     atac.uns['lsi'] = atac_hv.uns['pca']
-    
-    # Plot ATAC PCA variance
-    fig = plt.figure(figsize=(8, 6))
-    sc.pl.pca_variance_ratio(atac_hv, log=True, show=False)
-    plt.title('ATAC LSI variance ratio')
-    plt.savefig(f'{base_prefix}_atac_lsi_variance.png', dpi=150, bbox_inches='tight')
-    plt.close()
     
     # Update mdata with processed modalities
     mdata.mod['rna'] = rna
@@ -164,118 +158,88 @@ def main():
     print("4. Computing UMAP...")
     sc.tl.umap(mdata, random_state=42)
     
-    # === UMAP VISUALIZATION ===
-    print("\n=== CREATING UMAP VISUALIZATIONS ===")
+    # === COPY QC METRICS TO MDATA.OBS ===
+    print("\n=== COPYING QC METRICS ===")
     
-    # 1. Basic UMAP (no coloring)
+    # Copy RNA metrics to mdata.obs
+    mdata.obs['rna_n_counts'] = rna.obs['n_counts']
+    mdata.obs['rna_n_genes'] = rna.obs['n_genes']
+    
+    # Copy ATAC metrics to mdata.obs  
+    mdata.obs['atac_n_counts'] = atac.obs['n_counts']
+    mdata.obs['atac_n_peaks'] = atac.obs['n_peaks']
+    
+    print(f"mdata.obs columns: {list(mdata.obs.columns)}")
+    
+    # === CREATE 3 SIMPLE PLOTS ===
+    print("\n=== CREATING 3 SIMPLE PLOTS ===")
+    
+    # 1. RNA ONLY UMAP
     fig = plt.figure(figsize=(8, 6))
-    sc.pl.umap(mdata, size=20, show=False)
-    plt.title('UMAP: RNA+ATAC integrated')
-    plt.savefig(f'{base_prefix}_umap_integrated.png', dpi=150, bbox_inches='tight')
+    sc.pl.umap(mdata, color=['rna_n_counts'], size=20, show=False, 
+              title='RNA: Total Counts', color_map='viridis')
+    plt.savefig(f'{base_prefix}_umap_rna_only.png', dpi=150, bbox_inches='tight')
     plt.close()
+    print("✓ Created RNA only plot")
     
-    # 2. UMAP colored by sample - NEED TO PULL OBS FIRST
-    # Pull obs columns from individual modalities to mdata.obs
-    mu.pp.intersect_obs(mdata)
+    # 2. ATAC ONLY UMAP  
+    fig = plt.figure(figsize=(8, 6))
+    sc.pl.umap(mdata, color=['atac_n_counts'], size=20, show=False,
+              title='ATAC: Total Counts', color_map='plasma')
+    plt.savefig(f'{base_prefix}_umap_atac_only.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print("✓ Created ATAC only plot")
     
-    # Get column names from each modality
-    rna_obs_cols = list(rna.obs.columns)
-    atac_obs_cols = list(atac.obs.columns)
+    # 3. RNA+ATAC OVERLAPPED
+    fig, ax = plt.subplots(figsize=(10, 8))
     
-    print(f"\nRNA obs columns: {rna_obs_cols}")
-    print(f"ATAC obs columns: {atac_obs_cols}")
+    # Get UMAP coordinates
+    umap_coords = mdata.obsm['X_umap']
     
-    # Create QC plots with actual available columns
-    available_columns = list(mdata.obs.columns)
-    print(f"\nAvailable columns in mdata.obs: {available_columns}")
+    # Normalize RNA and ATAC counts for coloring
+    rna_norm = (mdata.obs['rna_n_counts'] - mdata.obs['rna_n_counts'].min()) / \
+               (mdata.obs['rna_n_counts'].max() - mdata.obs['rna_n_counts'].min())
+    atac_norm = (mdata.obs['atac_n_counts'] - mdata.obs['atac_n_counts'].min()) / \
+                (mdata.obs['atac_n_counts'].max() - mdata.obs['atac_n_counts'].min())
     
-    # Plot sample if available
-    if 'sample' in mdata.obs.columns:
-        fig = plt.figure(figsize=(8, 6))
-        sc.pl.umap(mdata, color=['sample'], size=20, show=False)
-        plt.title('UMAP: Colored by sample')
-        plt.savefig(f'{base_prefix}_umap_by_sample.png', dpi=150, bbox_inches='tight')
-        plt.close()
+    # Create RGB colors: Red=ATAC, Green=RNA
+    colors = np.zeros((len(rna_norm), 3))
+    colors[:, 0] = atac_norm  # Red channel = ATAC
+    colors[:, 1] = rna_norm   # Green channel = RNA
+    # Blue channel remains 0
     
-    # Plot QC metrics that are actually in mdata.obs
-    qc_plots_created = 0
+    # Plot all cells with combined colors
+    ax.scatter(umap_coords[:, 0], umap_coords[:, 1], 
+               c=colors, s=10, alpha=0.7)
     
-    # Check each possible column and plot if available
-    possible_qc_columns = [
-        ('n_counts', 'Total counts'),
-        ('log_n_counts', 'Log total counts'),
-        ('n_genes', 'Number of genes'),
-        ('n_peaks', 'Number of peaks')
+    ax.set_xlabel('UMAP1')
+    ax.set_ylabel('UMAP2')
+    ax.set_title('RNA+ATAC Overlapped (Red=ATAC, Green=RNA)', fontsize=14, fontweight='bold')
+    
+    # Add simple legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='red', alpha=0.7, label='High ATAC'),
+        Patch(facecolor='green', alpha=0.7, label='High RNA'),
+        Patch(facecolor='yellow', alpha=0.7, label='High Both')
     ]
+    ax.legend(handles=legend_elements, loc='upper right')
     
-    # Create individual plots for available QC metrics
-    for col_name, col_title in possible_qc_columns:
-        if col_name in mdata.obs.columns:
-            fig = plt.figure(figsize=(8, 6))
-            sc.pl.umap(mdata, color=[col_name], size=20, show=False)
-            plt.title(f'UMAP: {col_title}')
-            plt.savefig(f'{base_prefix}_umap_{col_name}.png', dpi=150, bbox_inches='tight')
-            plt.close()
-            qc_plots_created += 1
-            print(f"Created UMAP plot for {col_name}")
+    plt.tight_layout()
+    plt.savefig(f'{base_prefix}_umap_rna_atac_overlapped.png', dpi=150, bbox_inches='tight')
+    plt.close()
+    print("✓ Created RNA+ATAC overlapped plot")
     
-    # Also check for modality-specific columns (rna_, atac_ prefix)
-    for prefix in ['rna_', 'atac_']:
-        for col_name, col_title in possible_qc_columns:
-            full_col = f"{prefix}{col_name}"
-            if full_col in mdata.obs.columns:
-                fig = plt.figure(figsize=(8, 6))
-                sc.pl.umap(mdata, color=[full_col], size=20, show=False)
-                plt.title(f'UMAP: {prefix.upper()}{col_title}')
-                plt.savefig(f'{base_prefix}_umap_{full_col}.png', dpi=150, bbox_inches='tight')
-                plt.close()
-                qc_plots_created += 1
-                print(f"Created UMAP plot for {full_col}")
-    
-    # Create a multi-panel QC plot if we have at least 2 metrics
-    if qc_plots_created >= 2:
-        # Get the first 4 available QC columns
-        qc_cols_to_plot = []
-        for col_name, col_title in possible_qc_columns:
-            if col_name in mdata.obs.columns and len(qc_cols_to_plot) < 4:
-                qc_cols_to_plot.append((col_name, col_title))
-        
-        # Also check prefixed columns
-        if len(qc_cols_to_plot) < 4:
-            for prefix in ['rna_', 'atac_']:
-                for col_name, col_title in possible_qc_columns:
-                    full_col = f"{prefix}{col_name}"
-                    if full_col in mdata.obs.columns and len(qc_cols_to_plot) < 4:
-                        qc_cols_to_plot.append((full_col, f"{prefix.upper()}{col_title}"))
-        
-        if len(qc_cols_to_plot) >= 2:
-            n_rows = 2
-            n_cols = 2
-            fig, axes = plt.subplots(n_rows, n_cols, figsize=(16, 12))
-            axes = axes.flatten()
-            
-            for i, (col_name, col_title) in enumerate(qc_cols_to_plot[:4]):
-                sc.pl.umap(mdata, color=[col_name], size=20, show=False, ax=axes[i])
-                axes[i].set_title(col_title)
-            
-            # Hide unused subplots
-            for i in range(len(qc_cols_to_plot), 4):
-                axes[i].set_visible(False)
-            
-            plt.savefig(f'{base_prefix}_umap_qc_panel.png', dpi=150, bbox_inches='tight')
-            plt.close()
-            print("Created multi-panel QC UMAP plot")
-    
-    print(f"\nCreated {qc_plots_created} QC UMAP plots")
-    
-    # Save integrated data for clustering in separate script
+    # Save integrated data
     print(f"\nSaving integrated data to {args.output}")
     mu.write_h5mu(args.output, mdata)
     
-    print("\n=== UMAP ANALYSIS COMPLETE ===")
-    print(f"  Output file: {args.output}")
-    print(f"  Plots saved with prefix: {base_prefix}_")
-    print(f"  Total UMAP plots created: {1 + ('sample' in mdata.obs.columns) + qc_plots_created}")
+    print("\n=== ANALYSIS COMPLETE ===")
+    print(f"✓ Output file: {args.output}")
+    print(f"✓ Created 3 plots:")
+    print(f"  1. {base_prefix}_umap_rna_only.png")
+    print(f"  2. {base_prefix}_umap_atac_only.png")
+    print(f"  3. {base_prefix}_umap_rna_atac_overlapped.png")
 
 if __name__ == '__main__':
     main()
