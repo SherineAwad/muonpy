@@ -4,10 +4,29 @@ Scanpy 🧬 is a Python toolkit for single-cell analysis, and **Muon** ✨ exten
 It’s conceptually similar to **Seurat + Signac** in R 🖥️, allowing integrated analysis, visualization 📊, and interpretation of complex multi-omics datasets in a streamlined workflow 🚀.
 
 
+
+# Summary of samples
+
+| Sample | Overlapping barcodes (cells) | RNA features (genes) | ATAC features (peaks) |
+|--------|------------------------------|----------------------|-----------------------|
+| TH1    | 10,586                       | 32,285               | 218,774               |
+| TH2    | 11,519                       | 32,285               | 229,725               |
+
+
+
 # Before and after filtering 
 
+### Stats 
 
-![Before](neurog2_before_qc.png?v=1)
+| Stage | Cells | Peaks |
+|------|-------|-------|
+| Original | 22,105 | 447,355 |
+| After cell filtering | 21,213 | 447,355 |
+| After peak filtering | 21,213 | 447,244 |
+| Final | 21,213 | 447,244 |
 
-![After](neurog2_after_qc.png?v=1)
+
+![Before](neurog2_qc_before_filtering.png?v=1)
+
+![After](neurog2_qc_after_filtering.png?v=1)
 
