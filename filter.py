@@ -42,7 +42,7 @@ def create_rna_plots(rna, prefix, title_suffix=""):
     axes[0, 1].set_title('Number of genes per cell')
     
     # 3. Scatter: nFeature_RNA vs nCount_RNA colored by percent_mt
-    if 'percent_mt' in rna.obs and not rna.obs['percent_mt'].isnull().all():
+    if 'percent_mt' in rna.obs:
         scatter = axes[1, 0].scatter(rna.obs['n_counts'], rna.obs['n_genes'], 
                                     c=rna.obs['percent_mt'], s=5, alpha=0.7, 
                                     cmap='viridis', vmax=30)
@@ -57,17 +57,19 @@ def create_rna_plots(rna, prefix, title_suffix=""):
         axes[1, 0].set_title('Genes vs counts')
     
     # 4. Histogram of percent.mt
-    if 'percent_mt' in rna.obs and not rna.obs['percent_mt'].isnull().all():
+    if 'percent_mt' in rna.obs:
         axes[1, 1].hist(rna.obs['percent_mt'], bins=50, edgecolor='black')
         axes[1, 1].axvline(x=20, color='red', linestyle='--', linewidth=2)
         axes[1, 1].set_xlabel('Percent mitochondrial')
         axes[1, 1].set_ylabel('Number of cells')
         axes[1, 1].set_title('Mitochondrial percentage')
     else:
-        axes[1, 1].scatter(rna.obs['n_counts'], rna.obs['n_genes'], s=5, alpha=0.7)
+        axes[1, 1].hist(rna.obs['n_counts'], bins=50, edgecolor='black')
+        axes[1, 1].axvline(x=1000, color='red', linestyle='--', linewidth=2)
+        axes[1, 1].axvline(x=50000, color='red', linestyle='--', linewidth=2)
         axes[1, 1].set_xlabel('nCount_RNA')
-        axes[1, 1].set_ylabel('nFeature_RNA')
-        axes[1, 1].set_title('Genes vs counts (alternative)')
+        axes[1, 1].set_ylabel('Number of cells')
+        axes[1, 1].set_title('Total RNA counts (alternative)')
     
     plt.tight_layout()
     plt.savefig(f'{prefix}_rna_qc{title_suffix}.png', dpi=150, bbox_inches='tight')
@@ -94,7 +96,7 @@ def create_atac_plots(atac, prefix, title_suffix=""):
     axes[0, 1].set_title('Number of peaks per cell')
     
     # 3. Scatter: nFeature_ATAC vs nCount_ATAC
-    if 'tss_enrichment' in atac.obs and not atac.obs['tss_enrichment'].isnull().all():
+    if 'tss_enrichment' in atac.obs:
         scatter = axes[1, 0].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], 
                                     c=atac.obs['tss_enrichment'], s=5, alpha=0.7, 
                                     cmap='plasma', vmax=0.2)
@@ -109,17 +111,18 @@ def create_atac_plots(atac, prefix, title_suffix=""):
         axes[1, 0].set_title('Peaks vs counts')
     
     # 4. Histogram of TSS enrichment
-    if 'tss_enrichment' in atac.obs and not atac.obs['tss_enrichment'].isnull().all():
+    if 'tss_enrichment' in atac.obs:
         axes[1, 1].hist(atac.obs['tss_enrichment'], bins=50, edgecolor='black')
         axes[1, 1].axvline(x=0.1, color='red', linestyle='--', linewidth=2)
         axes[1, 1].set_xlabel('TSS enrichment')
         axes[1, 1].set_ylabel('Number of cells')
         axes[1, 1].set_title('TSS enrichment score')
     else:
-        axes[1, 1].scatter(atac.obs['n_counts'], atac.obs['n_peaks'], s=5, alpha=0.7)
-        axes[1, 1].set_xlabel('nCount_ATAC')
-        axes[1, 1].set_ylabel('nFeature_ATAC')
-        axes[1, 1].set_title('Peaks vs counts (alternative)')
+        axes[1, 1].hist(atac.obs['n_peaks'], bins=50, edgecolor='black')
+        axes[1, 1].axvline(x=500, color='red', linestyle='--', linewidth=2)
+        axes[1, 1].set_xlabel('nFeature_ATAC')
+        axes[1, 1].set_ylabel('Number of cells')
+        axes[1, 1].set_title('Number of peaks per cell (alternative)')
     
     plt.tight_layout()
     plt.savefig(f'{prefix}_atac_qc{title_suffix}.png', dpi=150, bbox_inches='tight')
@@ -152,16 +155,32 @@ def main():
         
         # Calculate mitochondrial percentage
         mt_genes = pd.Series(False, index=rna.var.index)
-        for col in rna.var.columns:
-            if rna.var[col].dtype == object:
-                col_data = rna.var[col].astype(str)
-                mt_genes = mt_genes | col_data.str.contains('^MT-|^mt-|^Mt-', na=False)
         
-        has_mt = mt_genes.sum() > 0
-        if has_mt:
-            mt_counts = rna[:, mt_genes].X.sum(axis=1).A1 if hasattr(rna[:, mt_genes].X, 'A1') else rna[:, mt_genes].X.sum(axis=1)
+        # Check var_names directly since that's where they are
+        var_names_str = pd.Series(rna.var_names.astype(str))
+        mt_genes = var_names_str.str.contains('^mt-', case=False, na=False)
+        
+        if mt_genes.sum() > 0:
+            mt_gene_names = list(rna.var_names[mt_genes])
+            print(f"Found {mt_genes.sum()} MT genes in var_names")
+            print(f"MT gene examples: {mt_gene_names[:10]}")
+            
+            # Extract MT counts - FIXED: ensure it's 1D array
+            mt_data = rna[:, mt_genes].X
+            if hasattr(mt_data, 'A1'):
+                mt_counts = mt_data.sum(axis=1).A1
+            else:
+                mt_counts = mt_data.sum(axis=1)
+                if hasattr(mt_counts, 'A1'):
+                    mt_counts = mt_counts.A1
+                elif hasattr(mt_counts, 'toarray'):
+                    mt_counts = mt_counts.toarray().flatten()
+                else:
+                    mt_counts = np.array(mt_counts).flatten()
+            
+            # Calculate percentage
             rna.obs['percent_mt'] = 100 * mt_counts / (rna.obs['n_counts'].values + 1e-6)
-            print(f"Found {mt_genes.sum()} mitochondrial genes")
+            print(f"MT percentage range: {rna.obs['percent_mt'].min():.2f}% - {rna.obs['percent_mt'].max():.2f}%")
         else:
             rna.obs['percent_mt'] = 0
             print("Warning: No mitochondrial genes found")
@@ -177,11 +196,9 @@ def main():
             (rna.obs['n_counts'] >= 1000) & 
             (rna.obs['n_counts'] <= 50000) &
             (rna.obs['n_genes'] >= 200) &
-            (rna.obs['n_genes'] <= 5000)
+            (rna.obs['n_genes'] <= 5000) &
+            (rna.obs['percent_mt'] <= 20)
         )
-        
-        if has_mt:
-            mask = mask & (rna.obs['percent_mt'] <= 20)
         
         rna_filtered = rna[mask, :].copy()
         print(f"RNA cells after filtering: {rna_filtered.n_obs}")
@@ -207,7 +224,6 @@ def main():
         atac.obs['n_peaks'] = (atac.X > 0).sum(axis=1).A1 if hasattr(atac.X, 'A1') else (atac.X > 0).sum(axis=1)
         
         # Calculate TSS enrichment if possible
-        has_tss = False
         atac.obs['tss_enrichment'] = 0  # Default
         
         # Look for TSS annotation in var columns
@@ -216,15 +232,24 @@ def main():
                 col_data = atac.var[col].astype(str)
                 tss_mask = col_data.str.contains('TSS|promoter|start', case=False, na=False)
                 if tss_mask.sum() > 0:
-                    tss_counts = atac[:, tss_mask].X.sum(axis=1).A1 if hasattr(atac[:, tss_mask].X, 'A1') else atac[:, tss_mask].X.sum(axis=1)
+                    tss_data = atac[:, tss_mask].X
+                    if hasattr(tss_data, 'A1'):
+                        tss_counts = tss_data.sum(axis=1).A1
+                    else:
+                        tss_counts = tss_data.sum(axis=1)
+                        if hasattr(tss_counts, 'A1'):
+                            tss_counts = tss_counts.A1
+                        elif hasattr(tss_counts, 'toarray'):
+                            tss_counts = tss_counts.toarray().flatten()
+                        else:
+                            tss_counts = np.array(tss_counts).flatten()
+                    
                     total_counts = atac.obs['n_counts'].values
                     atac.obs['tss_enrichment'] = tss_counts / (total_counts + 1e-6)
-                    has_tss = True
                     print(f"Found {tss_mask.sum()} TSS peaks in column '{col}'")
+                    if atac.obs['tss_enrichment'].max() > 0:
+                        print(f"TSS enrichment range: {atac.obs['tss_enrichment'].min():.4f} - {atac.obs['tss_enrichment'].max():.4f}")
                     break
-        
-        if not has_tss:
-            print("Warning: No TSS annotation found")
         
         # Create BEFORE filtering plots
         create_atac_plots(atac, base_prefix, "_before_filtering")
@@ -239,7 +264,7 @@ def main():
             (atac.obs['n_peaks'] >= 500)
         )
         
-        if has_tss:
+        if atac.obs['tss_enrichment'].max() > 0:
             mask = mask & (atac.obs['tss_enrichment'] >= 0.1)
             print("Applied TSS enrichment filter (≥0.1)")
         

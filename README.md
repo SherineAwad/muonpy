@@ -16,13 +16,25 @@ It’s conceptually similar to **Seurat + Signac** in R 🖥️, allowing integr
 
 # Before and after filtering 
 
-![rna](neurog2_rna_qc_before_filtering.png?v=1)
-![atac](neurog2_atac_qc_before_filtering.png?v=1)
+![rna](neurog2_rna_qc_before_filtering.png?v=2)
+![atac](neurog2_atac_qc_before_filtering.png?v=2)
 
 # After Filtering 
 
-![rna](neurog2_rna_qc_after_filtering.png?v=1)
-![atac](neurog2_atac_qc_after_filtering.png?v=1)
+![rna](neurog2_rna_qc_after_filtering.png?v=2)
+![atac](neurog2_atac_qc_after_filtering.png?v=2)
+
+### Stats
+
+| Modality | Metric | Before Filtering | After Filtering | Notes |
+|--------|--------|------------------|-----------------|-------|
+| **RNA** | Cells | 22,105 | 19,340 | Initial cell filtering |
+| **RNA** | Cells (final aligned) | 22,105 | 18,380 | 83.1% retained |
+| **RNA** | Genes | 32,285 | 21,679 | min_cells = 10 |
+| **ATAC** | Cells | 22,105 | 21,097 | Initial cell filtering |
+| **ATAC** | Cells (final aligned) | 22,105 | 18,380 | 83.1% retained |
+| **ATAC** | Peaks | 447,355 | 447,228 | min_cells = 10 |
+
 
 #### UMAP 
 
